@@ -150,10 +150,11 @@ export default function HostPage() {
               <span key={p.id} className="px-4 py-2 bg-gray-800 rounded-full text-sm font-medium">{p.nickname}</span>
             ))}
           </div>
-          {players.length > 0 && (
-            <p className="text-gray-500 text-sm">{players.length} participant{players.length > 1 ? 's' : ''} connecté{players.length > 1 ? 's' : ''}</p>
-          )}
-          <button onClick={() => advance('start')} disabled={players.length === 0}
+          {players.length === 0
+            ? <p className="text-gray-600 text-sm">Aucun participant — mode test</p>
+            : <p className="text-gray-500 text-sm">{players.length} participant{players.length > 1 ? 's' : ''} connecté{players.length > 1 ? 's' : ''}</p>
+          }
+          <button onClick={() => advance('start')} disabled={false}
             className="mt-4 px-12 py-5 bg-emerald-600 hover:bg-emerald-500 rounded-2xl text-2xl font-bold transition disabled:opacity-40">
             ▶ Démarrer
           </button>
