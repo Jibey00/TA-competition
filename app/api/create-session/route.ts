@@ -2,10 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { QUESTIONS }    from '@/lib/questions'
 import { NextResponse }  from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+export const dynamic = 'force-dynamic'
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -15,6 +12,11 @@ function generateCode(): string {
 }
 
 export async function POST() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
   const code = generateCode()
 
   const { data: session, error: sessionErr } = await supabase

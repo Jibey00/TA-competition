@@ -18,7 +18,8 @@ const VOTE_OPTIONS = [
   { value: 'hold', label: "Besoin d'indications", emoji: '🤔', bg: 'bg-yellow-600 hover:bg-yellow-500 active:bg-yellow-700'    },
 ]
 
-export default function PlayPage({ params }: { params: { code: string } }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function PlayPage(_props: { params: { code: string } }) {
   const [playerId,    setPlayerId]    = useState<string | null>(null)
   const [sessionId,   setSessionId]   = useState<string | null>(null)
   const [nickname,    setNickname]    = useState('')
@@ -65,6 +66,7 @@ export default function PlayPage({ params }: { params: { code: string } }) {
       supabase.from('questions').select('*').eq('session_id', sessionId).eq('idx', idx).single()
         .then(({ data }) => { if (data) setQuestion(data) })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.current_question, session?.state, sessionId])
 
   useEffect(() => {
