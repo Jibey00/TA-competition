@@ -2,10 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { QUESTIONS }    from '@/lib/questions'
 import { NextResponse }  from 'next/server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-)
+export const dynamic = 'force-dynamic'
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -15,31 +12,41 @@ function generateCode(): string {
 }
 
 export async function POST() {
-  const code = generateCode()
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    )
 
-  const { data: session, error: sessionErr } = await supabase
-    .from('sessions')
-    .insert({ code, state: 'lobby', current_question: 0 })
-    .select()
-    .single()
+    const code = generateCode()
 
-  if (sessionErr) return NextResponse.json({ error: sessionErr.message }, { status: 500 })
+    const { data: session, error: sessionErr } = await supabase
+      .from('sessions')
+      .insert({ code, state: 'lobby', current_question: 0 })
+      .select()
+      .single()
 
-  const { error: qErr } = await supabase.from('questions').insert(
-    QUESTIONS.map(q => ({
-      session_id:     session.id,
-      idx:            q.idx,
-      image_url:      q.image_url,
-      scenario:       q.scenario,
-      round:          q.round,
-      correct_answer: q.correct_answer,
-      max_points:     q.max_points,
-      label:          q.label,
-      explain:        q.explain,
-    }))
-  )
+    if (sessionErr) return NextResponse.json({ error: sessionErr.message }, { status: 500 })
 
-  if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
+    const { error: qErr } = await supabase.from('questions').insert(
+      QUESTIONS.map(q => ({
+        session_id:     session.id,
+        idx:            q.idx,
+        image_url:      q.image_url,
+        scenario:       q.scenario,
+        round:          q.round,
+        correct_answer: q.correct_answer,
+        max_points:     q.max_points,
+        label:          q.label,
+        explain:        q.explain,
+      }))
+    )
 
-  return NextResponse.json({ code, session_id: session.id })
+    if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
+
+    return NextResponse.json({ code, session_id: session.id })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

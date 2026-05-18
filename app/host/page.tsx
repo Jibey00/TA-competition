@@ -10,7 +10,7 @@ type State = 'init' | 'lobby' | 'voting' | 'reveal' | 'leaderboard' | 'done'
 interface Player   { id: string; nickname: string; total_score: number }
 interface Answer   { answer: string; player_id: string }
 interface Question {
-  id: string; idx: number; image_url: string; scenario: string;
+  id: string; idx: number; image_url: string; reveal_image_url: string; scenario: string;
   round: string; correct_answer: string; max_points: number; label: string; explain: string
 }
 
@@ -76,10 +76,11 @@ export default function HostPage() {
         (payload) => setAnswers(prev => [...prev, payload.new as Answer])
       ).subscribe()
     return () => { supabase.removeChannel(ch) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, currentQ?.id])
 
   useEffect(() => {
-    if (appState !== 'voting') { timerRef.current && clearInterval(timerRef.current); return }
+    if (appState !== 'voting') { if (timerRef.current) clearInterval(timerRef.current); return }
     setTimeLeft(TIMER_SECONDS)
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
@@ -87,7 +88,8 @@ export default function HostPage() {
         return t - 1
       })
     }, 1000)
-    return () => { timerRef.current && clearInterval(timerRef.current) }
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appState, qIdx])
 
   async function advance(action: string) {
@@ -179,7 +181,7 @@ export default function HostPage() {
 
           <div className="flex-1 relative bg-black">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={currentQ.image_url} alt="Chart" className="w-full h-full object-contain" />
+            <img src={appState === 'reveal' ? currentQ.reveal_image_url : currentQ.image_url} alt="Chart" className="w-full h-full object-contain" />
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/70 backdrop-blur px-6 py-2 rounded-full text-lg font-semibold">
               Achat / Vente / Besoin d&apos;indications ?
             </div>
@@ -222,7 +224,7 @@ export default function HostPage() {
 
           <div className="flex justify-end gap-3 px-6 py-3 bg-gray-900 border-t border-gray-800">
             {appState === 'voting' && (
-              <button onClick={() => { timerRef.current && clearInterval(timerRef.current); advance('reveal') }}
+              <button onClick={() => { if (timerRef.current) clearInterval(timerRef.current); advance('reveal') }}
                 className="px-6 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-semibold transition">
                 Révéler maintenant
               </button>
