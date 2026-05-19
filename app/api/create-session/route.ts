@@ -1,24 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
-import { QUESTIONS }    from '@/lib/questions'
-import { NextResponse }  from 'next/server'
-
-export const dynamic = 'force-dynamic'
-
-function generateCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  return Array.from({ length: 4 }, () =>
-    chars[Math.floor(Math.random() * chars.length)]
-  ).join('')
-}
+import { QUESTIONS } from '@/lib/questions'
+import { NextResponse } from 'next/server'
 
 export async function POST() {
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    )
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-    const code = generateCode()
+    console.log('ENV CHECK:', { url: url?.slice(0, 30), keyStart: key?.slice(0, 20) })
+
+    if (!url || !key) {
+      return NextResponse.json({ error: `Missing: url=${!!url} key=${!!key}` }, { status: 500 })
+    }
+
+    const supabase = createClient(url, key)
+
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    const code = Array.from({ length: 4 }, () =>
+      chars[Math.floor(Math.random() * chars.length)]
+    ).join('')
+
+    console.log('Inserting session with code:', code)
 
     const { data: session, error: sessionErr } = await supabase
       .from('sessions')
@@ -26,27 +28,38 @@ export async function POST() {
       .select()
       .single()
 
-    if (sessionErr) return NextResponse.json({ error: sessionErr.message }, { status: 500 })
+    console.log('Session result:', { session, sessionErr })
+
+    if (sessionErr) {
+      return NextResponse.json({ error: sessionErr.message, details: sessionErr }, { status: 500 })
+    }
 
     const { error: qErr } = await supabase.from('questions').insert(
       QUESTIONS.map(q => ({
-        session_id:     session.id,
-        idx:            q.idx,
-        image_url:      q.image_url,
-        scenario:       q.scenario,
-        round:          q.round,
+        session_id: session.id,
+        idx: q.idx,
+        image_url: q.image_url,
+        scenario: q.scenario,
+        round: q.round,
         correct_answer: q.correct_answer,
-        max_points:     q.max_points,
-        label:          q.label,
-        explain:        q.explain,
+        max_points: q.max_points,
+        label: q.label,
+        explain: q.explain,
       }))
     )
 
-    if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
+    console.log('Questions insert error:', qErr)
+
+    if (qErr) {
+      return NextResponse.json({ error: qErr.message, details: qErr }, { status: 500 })
+    }
 
     return NextResponse.json({ code, session_id: session.id })
+
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
-    return NextResponse.json({ error: message }, { status: 500 })
+    const stack = err instanceof Error ? err.stack : ''
+    console.error('CAUGHT ERROR:', message, stack)
+    return NextResponse.json({ error: message, stack }, { status: 500 })
   }
 }
