@@ -134,6 +134,11 @@ export default function HostPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col select-none">
+      {process.env.NODE_ENV === 'production' && (
+        <div className="fixed bottom-2 right-2 bg-black/80 text-green-400 text-xs p-2 rounded z-50 font-mono">
+          state={appState} | q={qIdx} | questions={questions.length} | session={sessionId?.slice(0,8)}
+        </div>
+      )}
 
       {appState === 'init' && (
         <div className="flex-1 flex flex-col items-center justify-center gap-8">
