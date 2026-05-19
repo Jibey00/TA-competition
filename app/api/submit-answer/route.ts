@@ -50,13 +50,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Helper: fetch vote distribution after any answer is recorded
+    async function getVoteDistribution() {
+      const { data: allAnswers } = await supabase
+        .from('answers')
+        .select('answer')
+        .eq('question_id', question_id)
+      const total = allAnswers?.length || 1
+      const dist = { buy: 0, sell: 0, pass: 0 }
+      allAnswers?.forEach(a => {
+        if (a.answer in dist) dist[a.answer as keyof typeof dist]++
+      })
+      return {
+        buy:  Math.round(dist.buy  / total * 100),
+        sell: Math.round(dist.sell / total * 100),
+        pass: Math.round(dist.pass / total * 100),
+      }
+    }
+
     // 'pass' answer — record with 0 points, no score update
     if (answer === 'pass') {
       await supabase.from('answers').upsert(
         { player_id, question_id, answer: 'pass', points_awarded: 0 },
         { onConflict: 'player_id,question_id', ignoreDuplicates: true }
       )
-      return NextResponse.json({ points: 0, is_correct: false, rank: 0 })
+      const vote_distribution = await getVoteDistribution()
+      return NextResponse.json({ points: 0, is_correct: false, rank: 0, vote_distribution })
     }
 
     // Normal scoring for buy/sell
@@ -90,7 +109,9 @@ export async function POST(req: NextRequest) {
       .update({ total_score: (player?.total_score ?? 0) + points })
       .eq('id', player_id)
 
-    return NextResponse.json({ points, is_correct: isCorrect, rank })
+    const vote_distribution = await getVoteDistribution()
+    // Never reveal is_correct to players — only shown at reveal after Round B
+    return NextResponse.json({ points, is_correct: false, rank, vote_distribution })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: message }, { status: 500 })

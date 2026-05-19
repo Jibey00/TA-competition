@@ -247,7 +247,7 @@ export default function HostPage() {
           <div className="relative bg-black flex-[65]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={currentQ.image_url}
+              src={appState === 'reveal' ? (currentQ.reveal_image_url ?? currentQ.image_url) : currentQ.image_url}
               alt="Chart"
               className="w-full h-full object-contain"
               onError={(e) => { e.currentTarget.style.opacity = '0.3' }}

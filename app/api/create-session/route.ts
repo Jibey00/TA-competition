@@ -39,6 +39,7 @@ export async function POST() {
         session_id: session.id,
         idx: q.idx,
         image_url: q.image_url,
+        reveal_image_url: q.reveal_image_url,
         scenario: q.scenario,
         round: q.round,
         correct_answer: q.correct_answer,
