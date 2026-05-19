@@ -20,7 +20,7 @@ const VOTE_CONFIG: Record<string, { label: string; emoji: string; bar: string }>
   pass: { label: 'Je passe', emoji: '⏳', bar: 'bg-gray-500'    },
 }
 
-const TIMER_SECONDS  = 20
+const TIMER_PRESETS  = [30, 60, 90, 120]
 const CIRCUMFERENCE  = 2 * Math.PI * 45
 const CONFETTI_COLORS = ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4']
 
@@ -32,12 +32,15 @@ export default function HostPage() {
   const [qIdx,        setQIdx]        = useState(0)
   const [answers,     setAnswers]     = useState<Answer[]>([])
   const [players,     setPlayers]     = useState<Player[]>([])
-  const [timeLeft,    setTimeLeft]    = useState(TIMER_SECONDS)
-  const [loading,      setLoading]      = useState(false)
-  const [lockedCount,  setLockedCount]  = useState(0)
-  const [freeCount,    setFreeCount]    = useState(0)
-  const timerRef       = useRef<NodeJS.Timeout | null>(null)
+  const [timeLeft,      setTimeLeft]      = useState(60)
+  const [timerDuration, setTimerDuration] = useState(60)
+  const [warmupMode,    setWarmupMode]    = useState(false)
+  const [loading,       setLoading]       = useState(false)
+  const [lockedCount,   setLockedCount]   = useState(0)
+  const [freeCount,     setFreeCount]     = useState(0)
+  const timerRef        = useRef<NodeJS.Timeout | null>(null)
   const currentRoundRef = useRef<string>('')
+  const timerDurationRef = useRef(60)
 
   const confetti = useRef(
     Array.from({ length: 30 }, (_, i) => ({
@@ -55,15 +58,20 @@ export default function HostPage() {
   const joinUrl       = sessionCode ? `${appUrl}/join?code=${sessionCode}` : ''
   const sortedPlayers = [...players].sort((a, b) => b.total_score - a.total_score)
 
-  const dashOffset = CIRCUMFERENCE * (1 - timeLeft / TIMER_SECONDS)
+  const dashOffset = CIRCUMFERENCE * (1 - timeLeft / timerDuration)
   const timerColor = timeLeft > 10 ? '#10b981' : timeLeft > 5 ? '#f59e0b' : '#ef4444'
 
-  // Keep round ref in sync for timer closure
+  // Keep refs in sync for timer closures
   useEffect(() => { currentRoundRef.current = currentQ?.round ?? '' }, [currentQ])
+  useEffect(() => { timerDurationRef.current = timerDuration }, [timerDuration])
 
   const createSession = useCallback(async () => {
     setLoading(true)
-    const res  = await fetch('/api/create-session', { method: 'POST' })
+    const res  = await fetch('/api/create-session', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ warmup: warmupMode }),
+    })
     const data = await res.json()
     setSessionId(data.session_id)
     setSessionCode(data.code)
@@ -121,7 +129,7 @@ export default function HostPage() {
 
   useEffect(() => {
     if (appState !== 'voting') { if (timerRef.current) clearInterval(timerRef.current); return }
-    setTimeLeft(TIMER_SECONDS)
+    setTimeLeft(timerDurationRef.current)
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) {
@@ -225,6 +233,36 @@ export default function HostPage() {
             : <p className="text-gray-500 text-sm z-10">{players.length} participant{players.length > 1 ? 's' : ''} connecté{players.length > 1 ? 's' : ''}</p>
           }
 
+          {/* Timer duration presets */}
+          <div className="flex flex-col items-center gap-2 z-10">
+            <p className="text-xs text-gray-500 uppercase tracking-widest">Durée du timer</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setTimerDuration(d => Math.max(10, d - 10))}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 font-bold text-lg transition">−</button>
+              <span className="text-2xl font-black w-16 text-center text-emerald-400">{timerDuration}s</span>
+              <button onClick={() => setTimerDuration(d => Math.min(300, d + 10))}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 font-bold text-lg transition">+</button>
+            </div>
+            <div className="flex gap-2">
+              {TIMER_PRESETS.map(p => (
+                <button key={p} onClick={() => setTimerDuration(p)}
+                  className={`px-3 py-1 rounded-lg text-sm font-bold transition ${
+                    timerDuration === p ? 'bg-emerald-600 text-white' : 'bg-white/10 text-gray-400 hover:bg-white/20'
+                  }`}>{p}s</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Warmup toggle */}
+          <button onClick={() => setWarmupMode(m => !m)}
+            className={`z-10 px-6 py-3 rounded-2xl font-semibold text-sm transition-all duration-200 border ${
+              warmupMode
+                ? 'bg-amber-600/30 border-amber-500 text-amber-300'
+                : 'bg-white/5 border-white/20 text-gray-400 hover:border-white/40'
+            }`}>
+            {warmupMode ? '🔥 Mode échauffement activé (0 pts)' : '○ Mode échauffement (sans points)'}
+          </button>
+
           <button onClick={() => advance('start')}
             className="mt-2 px-14 py-5 bg-emerald-600 hover:bg-emerald-500 hover:scale-105 rounded-2xl text-2xl font-bold transition-all duration-300 shadow-lg shadow-emerald-900/50 z-10">
             ▶ Démarrer
@@ -277,29 +315,54 @@ export default function HostPage() {
               <span className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-xs font-bold uppercase tracking-widest">
                 Round {currentQ.round} · {currentQ.max_points} pts
               </span>
+              {warmupMode && (
+                <span className="px-3 py-1 bg-amber-600/60 border border-amber-500/50 rounded-lg text-xs font-bold uppercase tracking-widest text-amber-300">
+                  WARMUP
+                </span>
+              )}
             </div>
 
             {/* SVG circular timer */}
             <div className="flex flex-col items-center py-4">
-              <div className="relative flex items-center justify-center" style={{ width: 120, height: 120 }}>
-                <svg width="120" height="120" style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
-                  <circle cx="60" cy="60" r="45" fill="none" stroke="#1f2937" strokeWidth="8" />
-                  <circle
-                    cx="60" cy="60" r="45" fill="none"
-                    stroke={timerColor}
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={CIRCUMFERENCE}
-                    strokeDashoffset={appState === 'reveal' ? 0 : dashOffset}
-                    style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.5s ease' }}
-                  />
-                </svg>
-                <span className="text-5xl font-black z-10 relative" style={{ color: timerColor }}>
-                  {appState === 'voting' ? timeLeft : '✓'}
-                </span>
+              <div className="flex items-center gap-3">
+                {appState === 'reveal' && (
+                  <button onClick={() => setTimerDuration(d => Math.max(10, d - 10))}
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 font-bold text-base transition">−</button>
+                )}
+                <div className="relative flex items-center justify-center" style={{ width: 120, height: 120 }}>
+                  <svg width="120" height="120" style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
+                    <circle cx="60" cy="60" r="45" fill="none" stroke="#1f2937" strokeWidth="8" />
+                    <circle
+                      cx="60" cy="60" r="45" fill="none"
+                      stroke={timerColor}
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={CIRCUMFERENCE}
+                      strokeDashoffset={appState === 'reveal' ? 0 : dashOffset}
+                      style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.5s ease' }}
+                    />
+                  </svg>
+                  <span className="text-5xl font-black z-10 relative" style={{ color: timerColor }}>
+                    {appState === 'voting' ? timeLeft : '✓'}
+                  </span>
+                </div>
+                {appState === 'reveal' && (
+                  <button onClick={() => setTimerDuration(d => Math.min(300, d + 10))}
+                    className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 font-bold text-base transition">+</button>
+                )}
               </div>
+              {appState === 'reveal' && (
+                <div className="flex gap-1 mt-1">
+                  {TIMER_PRESETS.map(p => (
+                    <button key={p} onClick={() => setTimerDuration(p)}
+                      className={`px-2 py-0.5 rounded text-xs font-bold transition ${
+                        timerDuration === p ? 'bg-emerald-600 text-white' : 'bg-white/10 text-gray-500 hover:bg-white/20'
+                      }`}>{p}s</button>
+                  ))}
+                </div>
+              )}
               <p className="text-gray-500 text-xs uppercase tracking-widest mt-2">
-                {answers.length} réponse{answers.length !== 1 ? 's' : ''}
+                {appState === 'voting' ? `${answers.length} réponse${answers.length !== 1 ? 's' : ''}` : `${timerDuration}s pour la suite`}
               </p>
             </div>
 

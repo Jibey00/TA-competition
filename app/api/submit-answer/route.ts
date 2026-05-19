@@ -22,6 +22,14 @@ export async function POST(req: NextRequest) {
     if (!question)
       return NextResponse.json({ error: 'Question not found' }, { status: 404 })
 
+    // Check warmup mode
+    const { data: sessionData } = await supabase
+      .from('sessions')
+      .select('warmup')
+      .eq('id', question.session_id)
+      .single()
+    const isWarmup = sessionData?.warmup === true
+
     // Round B: block players who already voted (non-pass) in Round A of the same scenario
     if (question.round === 'B') {
       const { data: roundAQ } = await supabase
@@ -87,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     const isCorrect = answer === question.correct_answer
     const rank      = isCorrect ? (count || 0) + 1 : 0
-    const points    = isCorrect ? calculatePoints(rank, question.max_points) : 0
+    const points    = isWarmup ? 0 : (isCorrect ? calculatePoints(rank, question.max_points) : 0)
 
     const { error: ansErr } = await supabase
       .from('answers')

@@ -2,7 +2,9 @@ import { createClient } from '@supabase/supabase-js'
 import { QUESTIONS } from '@/lib/questions'
 import { NextResponse } from 'next/server'
 
-export async function POST() {
+import { NextRequest } from 'next/server'
+
+export async function POST(req: NextRequest) {
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -15,6 +17,9 @@ export async function POST() {
 
     const supabase = createClient(url, key)
 
+    const body   = await req.json().catch(() => ({}))
+    const warmup = body.warmup === true
+
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
     const code = Array.from({ length: 4 }, () =>
       chars[Math.floor(Math.random() * chars.length)]
@@ -24,7 +29,7 @@ export async function POST() {
 
     const { data: session, error: sessionErr } = await supabase
       .from('sessions')
-      .insert({ code, state: 'lobby', current_question: 0 })
+      .insert({ code, state: 'lobby', current_question: 0, warmup })
       .select()
       .single()
 
