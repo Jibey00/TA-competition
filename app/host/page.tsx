@@ -95,14 +95,26 @@ export default function HostPage() {
   async function advance(action: string) {
     if (!sessionId) return
     await fetch('/api/advance', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ session_id: sessionId, action }),
+      body: JSON.stringify({ session_id: sessionId, action }),
     })
-    if      (action === 'start')       { setAppState('voting');      setQIdx(0)      }
+    if (action === 'start') {
+      setAppState('voting')
+      setQIdx(0)
+      // Force fetch questions if not loaded yet
+      if (questions.length === 0) {
+        const { data } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('idx')
+        setQuestions(data ?? [])
+      }
+    }
     else if (action === 'reveal')      { setAppState('reveal')                        }
     else if (action === 'leaderboard') { setAppState('leaderboard'); refreshPlayers() }
-    else if (action === 'next')        {
+    else if (action === 'next') {
       const next = qIdx + 1
       if (next >= QUESTIONS.length) setAppState('done')
       else { setQIdx(next); setAppState('voting') }
