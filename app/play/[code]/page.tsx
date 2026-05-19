@@ -29,7 +29,7 @@ export default function PlayPage(_props: { params: { code: string } }) {
   const [session,       setSession]       = useState<Session | null>(null)
   const [question,      setQuestion]      = useState<Question | null>(null)
   const [myAnswer,      setMyAnswer]      = useState<string | null>(null)
-  const [result,        setResult]        = useState<{ points: number; is_correct: boolean } | null>(null)
+  const [result,        setResult]        = useState<{ points: number; is_correct: boolean; vote_distribution?: Record<string, number> } | null>(null)
   const [leaderboard,   setLeaderboard]   = useState<PlayerRank[]>([])
   const [myRank,        setMyRank]        = useState<number | null>(null)
   const [myScore,       setMyScore]       = useState(0)
@@ -217,7 +217,7 @@ export default function PlayPage(_props: { params: { code: string } }) {
               )}
             </div>
           ) : (
-            <div className="text-center py-8 space-y-3">
+            <div className="text-center py-6 space-y-3">
               <div className="text-5xl">{submitting ? '⏳' : '⌛'}</div>
               <p className="text-lg font-semibold text-gray-300">{submitting ? 'Envoi…' : 'Réponse enregistrée'}</p>
               {/* No points shown in Round A — revealed at the end */}
@@ -227,6 +227,25 @@ export default function PlayPage(_props: { params: { code: string } }) {
               <p className="text-gray-500 text-sm">
                 {isRoundB ? 'En attente du révélé…' : 'En attente du Round B…'}
               </p>
+              {/* Ghost votes — show distribution after submitting in Round A */}
+              {!isRoundB && result?.vote_distribution && !submitting && (
+                <div className="mt-4 space-y-2 text-left">
+                  <p className="text-xs text-gray-500 text-center">Comment ont voté les autres</p>
+                  {Object.entries(result.vote_distribution).map(([key, pct]) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-xs w-16 text-gray-400">
+                        {key === 'buy' ? '📈 Achat' : key === 'sell' ? '📉 Vente' : '⏳ Passe'}
+                      </span>
+                      <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full transition-all duration-700"
+                          style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-400 w-8 text-right">{pct}%</span>
+                    </div>
+                  ))}
+                  <p className="text-xs text-gray-600 text-center mt-2">La bonne réponse sera révélée après le Round B</p>
+                </div>
+              )}
             </div>
           )}
         </div>
