@@ -15,13 +15,51 @@ export async function POST(req: NextRequest) {
 
     const { data: question } = await supabase
       .from('questions')
-      .select('correct_answer, max_points')
+      .select('correct_answer, max_points, round, scenario, session_id')
       .eq('id', question_id)
       .single()
 
     if (!question)
       return NextResponse.json({ error: 'Question not found' }, { status: 404 })
 
+    // Round B: block players who already voted (non-pass) in Round A of the same scenario
+    if (question.round === 'B') {
+      const { data: roundAQ } = await supabase
+        .from('questions')
+        .select('id')
+        .eq('session_id', question.session_id)
+        .eq('scenario', question.scenario)
+        .eq('round', 'A')
+        .single()
+
+      if (roundAQ) {
+        const { data: prevAnswer } = await supabase
+          .from('answers')
+          .select('answer, points_awarded')
+          .eq('player_id', player_id)
+          .eq('question_id', roundAQ.id)
+          .single()
+
+        if (prevAnswer && prevAnswer.answer !== 'pass') {
+          return NextResponse.json({
+            locked:          true,
+            previous_answer: prevAnswer.answer,
+            points_awarded:  prevAnswer.points_awarded,
+          })
+        }
+      }
+    }
+
+    // 'pass' answer — record with 0 points, no score update
+    if (answer === 'pass') {
+      await supabase.from('answers').upsert(
+        { player_id, question_id, answer: 'pass', points_awarded: 0 },
+        { onConflict: 'player_id,question_id', ignoreDuplicates: true }
+      )
+      return NextResponse.json({ points: 0, is_correct: false, rank: 0 })
+    }
+
+    // Normal scoring for buy/sell
     const { count } = await supabase
       .from('answers')
       .select('*', { count: 'exact', head: true })

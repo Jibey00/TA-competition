@@ -15,9 +15,9 @@ interface Question {
 }
 
 const VOTE_CONFIG: Record<string, { label: string; emoji: string; bar: string }> = {
-  buy:  { label: 'Achat',                emoji: '📈', bar: 'bg-emerald-500' },
-  sell: { label: 'Vente',                emoji: '📉', bar: 'bg-red-500'     },
-  hold: { label: "Besoin d'indications", emoji: '🤔', bar: 'bg-amber-500'   },
+  buy:  { label: 'Achat',    emoji: '📈', bar: 'bg-emerald-500' },
+  sell: { label: 'Vente',    emoji: '📉', bar: 'bg-red-500'     },
+  pass: { label: 'Je passe', emoji: '⏳', bar: 'bg-gray-500'    },
 }
 
 const TIMER_SECONDS  = 20
@@ -33,8 +33,11 @@ export default function HostPage() {
   const [answers,     setAnswers]     = useState<Answer[]>([])
   const [players,     setPlayers]     = useState<Player[]>([])
   const [timeLeft,    setTimeLeft]    = useState(TIMER_SECONDS)
-  const [loading,     setLoading]     = useState(false)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const [loading,      setLoading]      = useState(false)
+  const [lockedCount,  setLockedCount]  = useState(0)
+  const [freeCount,    setFreeCount]    = useState(0)
+  const timerRef       = useRef<NodeJS.Timeout | null>(null)
+  const currentRoundRef = useRef<string>('')
 
   const confetti = useRef(
     Array.from({ length: 30 }, (_, i) => ({
@@ -54,6 +57,9 @@ export default function HostPage() {
 
   const dashOffset = CIRCUMFERENCE * (1 - timeLeft / TIMER_SECONDS)
   const timerColor = timeLeft > 10 ? '#10b981' : timeLeft > 5 ? '#f59e0b' : '#ef4444'
+
+  // Keep round ref in sync for timer closure
+  useEffect(() => { currentRoundRef.current = currentQ?.round ?? '' }, [currentQ])
 
   const createSession = useCallback(async () => {
     setLoading(true)
@@ -84,6 +90,19 @@ export default function HostPage() {
     return () => { supabase.removeChannel(ch) }
   }, [sessionId])
 
+  // Fetch locked/free counts when entering Round B
+  useEffect(() => {
+    if (!currentQ || currentQ.round !== 'B' || !sessionId) return
+    const roundAQ = questions.find(q => q.scenario === currentQ.scenario && q.round === 'A')
+    if (!roundAQ) return
+    supabase.from('answers').select('answer').eq('question_id', roundAQ.id)
+      .then(({ data }) => {
+        const all = data ?? []
+        setLockedCount(all.filter(a => a.answer !== 'pass').length)
+        setFreeCount(all.filter(a => a.answer === 'pass').length)
+      })
+  }, [currentQ?.id, sessionId, questions.length])
+
   useEffect(() => {
     if (!sessionId || !currentQ) return
     setAnswers([])
@@ -105,7 +124,13 @@ export default function HostPage() {
     setTimeLeft(TIMER_SECONDS)
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
-        if (t <= 1) { clearInterval(timerRef.current!); advance('reveal'); return 0 }
+        if (t <= 1) {
+          clearInterval(timerRef.current!)
+          // Round A → advance to Round B (no reveal); Round B → reveal
+          if (currentRoundRef.current === 'A') advance('next')
+          else advance('reveal')
+          return 0
+        }
         return t - 1
       })
     }, 1000)
@@ -137,7 +162,7 @@ export default function HostPage() {
     else if (action === 'finish') setAppState('done')
   }
 
-  const voteCounts = { buy: 0, sell: 0, hold: 0 }
+  const voteCounts = { buy: 0, sell: 0, pass: 0 }
   answers.forEach(a => { if (a.answer in voteCounts) voteCounts[a.answer as keyof typeof voteCounts]++ })
   const totalVotes = answers.length || 1
 
@@ -278,9 +303,24 @@ export default function HostPage() {
               </p>
             </div>
 
+            {/* Locked / free indicator for Round B */}
+            {currentQ.round === 'B' && appState === 'voting' && (
+              <div className="mx-4 mb-3 px-4 py-3 bg-white/5 border border-white/10 rounded-xl flex justify-around text-center text-sm">
+                <div>
+                  <p className="text-2xl font-black text-red-400">{lockedCount}</p>
+                  <p className="text-xs text-gray-500">🔒 Engagés</p>
+                </div>
+                <div className="w-px bg-white/10" />
+                <div>
+                  <p className="text-2xl font-black text-emerald-400">{freeCount}</p>
+                  <p className="text-xs text-gray-500">🆓 Libres</p>
+                </div>
+              </div>
+            )}
+
             {/* Vote bars */}
             <div className="px-4 space-y-2 pb-3">
-              {(['buy', 'sell', 'hold'] as const).map(opt => {
+              {(['buy', 'sell', 'pass'] as const).map(opt => {
                 const cnt       = voteCounts[opt]
                 const pct       = Math.round((cnt / totalVotes) * 100)
                 const cfg       = VOTE_CONFIG[opt]
@@ -335,7 +375,14 @@ export default function HostPage() {
 
             {/* Action buttons */}
             <div className="p-4 border-t border-white/10 flex flex-col gap-2">
-              {appState === 'voting' && (
+              {appState === 'voting' && currentQ.round === 'A' && (
+                <button
+                  onClick={() => { if (timerRef.current) clearInterval(timerRef.current); advance('next') }}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 hover:scale-105 rounded-2xl font-bold transition-all duration-200 shadow-lg">
+                  Passer au Round B →
+                </button>
+              )}
+              {appState === 'voting' && currentQ.round === 'B' && (
                 <button
                   onClick={() => { if (timerRef.current) clearInterval(timerRef.current); advance('reveal') }}
                   className="w-full py-3 bg-amber-600 hover:bg-amber-500 hover:scale-105 rounded-2xl font-bold transition-all duration-200 shadow-lg">
