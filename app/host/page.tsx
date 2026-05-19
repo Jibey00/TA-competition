@@ -50,9 +50,15 @@ export default function HostPage() {
 
   useEffect(() => {
     if (!sessionId) return
-    supabase.from('questions').select('*').eq('session_id', sessionId).order('idx')
-      .then(({ data }) => setQuestions(data ?? []))
-  }, [sessionId])
+    supabase
+      .from('questions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('idx')
+      .then(({ data }) => {
+        if (data && data.length > 0) setQuestions(data)
+      })
+  }, [sessionId, appState])
 
   useEffect(() => {
     if (!sessionId) return
@@ -175,6 +181,12 @@ export default function HostPage() {
             className="mt-4 px-12 py-5 bg-emerald-600 hover:bg-emerald-500 rounded-2xl text-2xl font-bold transition disabled:opacity-40">
             ▶ Démarrer
           </button>
+        </div>
+      )}
+
+      {(appState === 'voting' || appState === 'reveal') && !currentQ && (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-gray-400 text-xl animate-pulse">Chargement des questions...</p>
         </div>
       )}
 
